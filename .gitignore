@@ -32,3 +32,31 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# other projects in this directory
+courtpulse/
+
+# personal files
+Cam england/
+FT/
+Intern/
+Journey/
+Later/
+Lead Swift/
+Me/
+Pics/
+Resources/
+S/
+Watch/
+Whop apps/
+*.webp
+*.pdf
+*.csv
+*.xlsx
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.mov
+*.mp4
+*.MOV
