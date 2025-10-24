@@ -39,40 +39,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the Twitter account exists by fetching tweets
+    // Try to verify the Twitter account exists by fetching tweets
+    // But don't fail if verification doesn't work - just add it anyway
+    let lastTweetId: string | undefined;
+
     try {
       const monitor = new TwitterMonitor();
       const tweets = await monitor.checkForNewTweets(cleanUsername);
 
-      if (tweets.length === 0) {
-        console.warn(`[Add Account] No tweets found for @${cleanUsername}, but continuing anyway`);
+      if (tweets.length > 0) {
+        lastTweetId = tweets[0].id;
+        console.log(`[Add Account] Verified @${cleanUsername} - found ${tweets.length} tweets`);
+      } else {
+        console.warn(`[Add Account] No tweets found for @${cleanUsername}, but adding anyway`);
       }
-
-      // Create the monitor
-      const docRef = await monitorsRef.add({
-        username: cleanUsername,
-        whopId: whopId || experienceId,
-        experienceId,
-        addedBy: addedBy || 'system',
-        addedAt: new Date(),
-        lastChecked: new Date(),
-        lastTweetId: tweets.length > 0 ? tweets[0].id : undefined,
-      });
-
-      console.log(`[Add Account] ✅ Now monitoring @${cleanUsername}`);
-
-      return NextResponse.json({
-        success: true,
-        accountId: docRef.id,
-        username: cleanUsername,
-      });
     } catch (error) {
-      console.error(`[Add Account] Failed to verify account:`, error);
-      return NextResponse.json(
-        { error: 'Could not verify Twitter account. Please check the username.' },
-        { status: 400 }
-      );
+      console.warn(`[Add Account] Could not verify @${cleanUsername}, but adding anyway:`, error);
     }
+
+    // Create the monitor regardless of verification
+    const monitorData: any = {
+      username: cleanUsername,
+      whopId: whopId || experienceId,
+      experienceId,
+      addedBy: addedBy || 'system',
+      addedAt: new Date(),
+      lastChecked: new Date(),
+    };
+
+    // Only add lastTweetId if it exists (Firestore doesn't like undefined)
+    if (lastTweetId) {
+      monitorData.lastTweetId = lastTweetId;
+    }
+
+    const docRef = await monitorsRef.add(monitorData);
+
+    console.log(`[Add Account] ✅ Now monitoring @${cleanUsername}`);
+
+    return NextResponse.json({
+      success: true,
+      accountId: docRef.id,
+      username: cleanUsername,
+    });
   } catch (error) {
     console.error('[Add Account] Error:', error);
     return NextResponse.json(
