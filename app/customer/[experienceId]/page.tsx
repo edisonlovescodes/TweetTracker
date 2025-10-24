@@ -34,7 +34,12 @@ export default function CustomerFeed() {
       const response = await fetch(`/api/get-tweets?experienceId=${experienceId}`);
 
       if (!response.ok) {
-        throw new Error('Failed to load tweets');
+        // If it's a 404 or similar, just show empty state
+        console.warn('Could not load tweets:', response.status);
+        setTweets([]);
+        setError('');
+        setLoading(false);
+        return;
       }
 
       const data = await response.json();
@@ -42,7 +47,9 @@ export default function CustomerFeed() {
       setError('');
     } catch (err) {
       console.error('Failed to load tweets:', err);
-      setError('Failed to load tweets. Please try again.');
+      // Don't show error for empty state, just show no tweets
+      setTweets([]);
+      setError('');
     } finally {
       setLoading(false);
     }
