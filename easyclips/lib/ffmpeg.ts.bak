@@ -1,0 +1,253 @@
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { toBlobURL } from "@ffmpeg/util";
+
+let ffmpegInstance: FFmpeg | null = null;
+
+export async function loadFFmpeg(
+	onProgress?: (progress: number) => void
+): Promise<FFmpeg> {
+	if (ffmpegInstance) {
+		return ffmpegInstance;
+	}
+
+	const ffmpeg = new FFmpeg();
+
+	// Set up progress logging
+	ffmpeg.on("log", ({ message }) => {
+		console.log("[FFmpeg]", message);
+	});
+
+	ffmpeg.on("progress", ({ progress }) => {
+		if (onProgress) {
+			onProgress(Math.round(progress * 100));
+		}
+	});
+
+	// Load FFmpeg from CDN
+	const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+
+	await ffmpeg.load({
+		coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+		wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+	});
+
+	ffmpegInstance = ffmpeg;
+	return ffmpeg;
+}
+
+export async function mergeVideos(
+	videoFiles: { file: File; startTime: number; endTime: number }[],
+	onProgress?: (progress: number) => void
+): Promise<Blob> {
+	const ffmpeg = await loadFFmpeg(onProgress);
+
+	// Write input files
+	for (let i = 0; i < videoFiles.length; i++) {
+		const { file } = videoFiles[i];
+		const data = await file.arrayBuffer();
+		await ffmpeg.writeFile(`input${i}.mp4`, new Uint8Array(data));
+	}
+
+	// Create concat file
+	const concatContent = videoFiles
+		.map((_, i) => `file 'input${i}.mp4'`)
+		.join("\n");
+	await ffmpeg.writeFile(
+		"concat.txt",
+		new TextEncoder().encode(concatContent)
+	);
+
+	// Run FFmpeg to concatenate
+	await ffmpeg.exec([
+		"-f",
+		"concat",
+		"-safe",
+		"0",
+		"-i",
+		"concat.txt",
+		"-c",
+		"copy",
+		"output.mp4",
+	]);
+
+	// Read output
+	const data = await ffmpeg.readFile("output.mp4");
+	const blob = new Blob([data], { type: "video/mp4" });
+
+	// Cleanup
+	for (let i = 0; i < videoFiles.length; i++) {
+		await ffmpeg.deleteFile(`input${i}.mp4`);
+	}
+	await ffmpeg.deleteFile("concat.txt");
+	await ffmpeg.deleteFile("output.mp4");
+
+	return blob;
+}
+
+export async function trimVideo(
+	file: File,
+	startTime: number,
+	endTime: number,
+	onProgress?: (progress: number) => void
+): Promise<Blob> {
+	const ffmpeg = await loadFFmpeg(onProgress);
+
+	const data = await file.arrayBuffer();
+	await ffmpeg.writeFile("input.mp4", new Uint8Array(data));
+
+	const duration = endTime - startTime;
+
+	await ffmpeg.exec([
+		"-i",
+		"input.mp4",
+		"-ss",
+		startTime.toString(),
+		"-t",
+		duration.toString(),
+		"-c",
+		"copy",
+		"output.mp4",
+	]);
+
+	const outputData = await ffmpeg.readFile("output.mp4");
+	const blob = new Blob([outputData], { type: "video/mp4" });
+
+	await ffmpeg.deleteFile("input.mp4");
+	await ffmpeg.deleteFile("output.mp4");
+
+	return blob;
+}
+
+export async function convertAspectRatio(
+	file: File,
+	outputWidth: number,
+	outputHeight: number,
+	mode: "crop" | "blur" = "crop",
+	onProgress?: (progress: number) => void
+): Promise<Blob> {
+	const ffmpeg = await loadFFmpeg(onProgress);
+
+	const data = await file.arrayBuffer();
+	await ffmpeg.writeFile("input.mp4", new Uint8Array(data));
+
+	let filterComplex: string;
+
+	if (mode === "crop") {
+		// Smart crop - zoom to fill
+		filterComplex = `scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=increase,crop=${outputWidth}:${outputHeight}`;
+	} else {
+		// Blurred background mode
+		filterComplex = `[0:v]scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease,boxblur=20:5[fg];[0:v]scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=increase,crop=${outputWidth}:${outputHeight}[bg];[bg][fg]overlay=(W-w)/2:(H-h)/2`;
+	}
+
+	await ffmpeg.exec([
+		"-i",
+		"input.mp4",
+		"-vf",
+		filterComplex,
+		"-c:a",
+		"copy",
+		"output.mp4",
+	]);
+
+	const outputData = await ffmpeg.readFile("output.mp4");
+	const blob = new Blob([outputData], { type: "video/mp4" });
+
+	await ffmpeg.deleteFile("input.mp4");
+	await ffmpeg.deleteFile("output.mp4");
+
+	return blob;
+}
+
+export async function exportVideo(
+	videoFiles: { file: File; startTime: number; endTime: number; position: number }[],
+	audioFiles: { file: File; position: number }[],
+	width: number,
+	height: number,
+	quality: "1080p" | "720p" | "480p" = "1080p",
+	onProgress?: (progress: number) => void
+): Promise<Blob> {
+	const ffmpeg = await loadFFmpeg(onProgress);
+
+	// Determine output dimensions based on quality
+	const qualityMap = {
+		"1080p": { width: 1920, height: 1080, bitrate: "5000k" },
+		"720p": { width: 1280, height: 720, bitrate: "2500k" },
+		"480p": { width: 854, height: 480, bitrate: "1000k" },
+	};
+
+	const { bitrate } = qualityMap[quality];
+
+	// Write video files
+	for (let i = 0; i < videoFiles.length; i++) {
+		const { file } = videoFiles[i];
+		const data = await file.arrayBuffer();
+		await ffmpeg.writeFile(`video${i}.mp4`, new Uint8Array(data));
+	}
+
+	// For simple case (single video), just encode
+	if (videoFiles.length === 1 && audioFiles.length === 0) {
+		const { file, startTime, endTime } = videoFiles[0];
+		const duration = endTime - startTime;
+
+		await ffmpeg.exec([
+			"-i",
+			"video0.mp4",
+			"-ss",
+			startTime.toString(),
+			"-t",
+			duration.toString(),
+			"-vf",
+			`scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
+			"-b:v",
+			bitrate,
+			"-c:a",
+			"aac",
+			"-b:a",
+			"128k",
+			"output.mp4",
+		]);
+	} else {
+		// Complex case: merge multiple videos/audio
+		// Create concat file
+		const concatContent = videoFiles
+			.map((_, i) => `file 'video${i}.mp4'`)
+			.join("\n");
+		await ffmpeg.writeFile(
+			"concat.txt",
+			new TextEncoder().encode(concatContent)
+		);
+
+		await ffmpeg.exec([
+			"-f",
+			"concat",
+			"-safe",
+			"0",
+			"-i",
+			"concat.txt",
+			"-vf",
+			`scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
+			"-b:v",
+			bitrate,
+			"-c:a",
+			"aac",
+			"-b:a",
+			"128k",
+			"output.mp4",
+		]);
+
+		await ffmpeg.deleteFile("concat.txt");
+	}
+
+	// Read output
+	const outputData = await ffmpeg.readFile("output.mp4");
+	const blob = new Blob([outputData], { type: "video/mp4" });
+
+	// Cleanup
+	for (let i = 0; i < videoFiles.length; i++) {
+		await ffmpeg.deleteFile(`video${i}.mp4`);
+	}
+	await ffmpeg.deleteFile("output.mp4");
+
+	return blob;
+}
