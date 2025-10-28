@@ -26,6 +26,7 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 	const [platform, setPlatform] = useState<Platform>("youtube-shorts");
 	const [quality, setQuality] = useState<Quality>("1080p");
 	const [isExportingLocal, setIsExportingLocal] = useState(false);
+	const [exportError, setExportError] = useState<string | null>(null);
 
 	if (!isOpen) return null;
 
@@ -35,6 +36,8 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 		setIsExportingLocal(true);
 		setIsExporting(true);
 		setExportProgress(0);
+		setExportError(null);
+		let exportFailed = false;
 
 		try {
 			const videoFiles = videoClips.map((clip) => ({
@@ -76,11 +79,16 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 			}, 1000);
 		} catch (error) {
 			console.error("Export failed:", error);
-			alert("Export failed. Please try again.");
+			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+			setExportError(`Export failed: ${errorMessage}. Please try again or use a smaller video file.`);
+			setExportProgress(0);
+			exportFailed = true;
 		} finally {
 			setIsExportingLocal(false);
 			setIsExporting(false);
-			setExportProgress(0);
+			if (!exportFailed) {
+				setExportProgress(0);
+			}
 		}
 	};
 
@@ -188,6 +196,25 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 									className="h-full bg-accent transition-all duration-300"
 									style={{ width: `${exportProgress}%` }}
 								/>
+							</div>
+						</div>
+					)}
+
+					{/* Error Message */}
+					{exportError && (
+						<div className="bg-red-50 border-2 border-red-500 rounded-lg p-4">
+							<div className="flex items-start gap-3">
+								<div className="text-red-500 text-xl">⚠️</div>
+								<div>
+									<h4 className="font-bold text-red-800 mb-1">Export Failed</h4>
+									<p className="text-sm text-red-700">{exportError}</p>
+									<button
+										onClick={() => setExportError(null)}
+										className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+									>
+										Dismiss
+									</button>
+								</div>
 							</div>
 						</div>
 					)}
