@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FiX } from "react-icons/fi";
 import { useEditorStore } from "@/lib/stores/editorStore";
 
@@ -19,9 +19,6 @@ const aspectRatios: Record<AspectRatio, { width: number; height: number; label: 
 	"4:3": { width: 1440, height: 1080, label: "Classic (Old TV)" },
 };
 
-const isPresetRatio = (ratio: string): ratio is AspectRatio =>
-	Object.prototype.hasOwnProperty.call(aspectRatios, ratio);
-
 export function AspectRatioModal({ isOpen, onClose }: AspectRatioModalProps) {
 	const { aspectRatio, setAspectRatio } = useEditorStore();
 	const [selectedRatio, setSelectedRatio] = useState<AspectRatio>("16:9");
@@ -29,38 +26,13 @@ export function AspectRatioModal({ isOpen, onClose }: AspectRatioModalProps) {
 
 	if (!isOpen) return null;
 
-	useEffect(() => {
-		if (!isOpen) return;
-
-		const currentRatio = isPresetRatio(aspectRatio) ? aspectRatio : "16:9";
-		setSelectedRatio(currentRatio);
-	}, [aspectRatio, isOpen]);
-
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		};
-
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [onClose]);
-
 	const handleApply = () => {
 		setAspectRatio(selectedRatio);
 		onClose();
 	};
 
 	return (
-		<div
-			className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) {
-					onClose();
-				}
-			}}
-		>
+		<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
 			<div className="bg-cream rounded-xl max-w-2xl w-full shadow-2xl">
 				{/* Header */}
 				<div className="flex items-center justify-between p-6 border-b border-dark/10">
