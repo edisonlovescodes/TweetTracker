@@ -24,26 +24,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": [
-    "node_modules",
-    "courtpulse",
-    "Cam england",
-    "FT",
-    "Intern",
-    "Journey",
-    "Later",
-    "Lead Swift",
-    "Me",
-    "Pics",
-    "Resources",
-    "S",
-    "Watch",
-    "Whop apps",
-    "chrono-pixel-hub",
-    "macro-tracker-whop",
-    "portfolio-edison",
-    "youtubepulse",
-    "easyclips",
-    "src"
-  ]
+  "exclude": ["node_modules", "courtpulse", "Cam england", "FT", "Intern", "Journey", "Later", "Lead Swift", "Me", "Pics", "Resources", "S", "Watch", "Whop apps"]
 }

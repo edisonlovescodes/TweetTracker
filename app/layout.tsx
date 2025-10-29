@@ -1,15 +1,9 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
-  title: 'Whop Checkout CRO Lab',
-  description: 'Experience view blueprint with verified access, CRO order bump, and Whop checkout embed.',
+  title: 'Twitter Monitor - Whop App',
+  description: 'Get instant notifications when your favorite Twitter accounts post',
 }
 
 export default function RootLayout({
@@ -19,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body>{children}</body>
     </html>
   )
 }
