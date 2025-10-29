@@ -1,136 +1,70 @@
 # Setup Instructions
 
-## Quick Start
+This checklist walks you from a fresh clone to a working Whop checkout experience in the dev proxy.
 
-### 1. Firebase Setup
-
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project (or use existing)
-3. Go to **Project Settings** > **Service Accounts**
-4. Click **"Generate new private key"**
-5. Download the JSON file
-
-### 2. Create Environment Variables
-
-Create a file called `.env.local` in the project root:
-
-```bash
-# Firebase Configuration (from the JSON file you downloaded)
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYourPrivateKeyHere\n-----END PRIVATE KEY-----\n"
-
-# Cron Secret (make this a random string)
-CRON_SECRET=your-random-secret-string-here-make-it-long-and-random
-```
-
-**Tips:**
-- The `FIREBASE_PRIVATE_KEY` must keep the `\n` characters and be wrapped in quotes
-- Generate `CRON_SECRET` using: `openssl rand -base64 32`
-
-### 3. Install Dependencies
+## 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 4. Run Locally
+## 2. Configure environment variables
+
+Create `.env.local` and copy the template from `.env.local.example`. Fill in:
+
+- `WHOP_API_KEY` – App API key from Whop Developer Dashboard  
+- `WHOP_APP_ID` – App ID (also shown in the dashboard)  
+- `WHOP_WEBHOOK_SECRET` – Found under the Webhooks tab of the app settings  
+- `WHOP_BASE_PLAN_ID` – Plan ID for the base offer (no bump)  
+- `WHOP_BUNDLE_PLAN_ID` – Plan ID that bundles the order bump  
+- `WHOP_BUNDLE_PRODUCT_ID` – Optional product ID for analytics/SDK calls  
+- `WHOP_CHECKOUT_THEME` / `WHOP_CHECKOUT_ACCENT` – Theme knobs for the iframe  
+- Optional dev helpers: `WHOP_DEV_BYPASS`, `WHOP_DEV_USER_ID`, `WHOP_DEV_ACCESS_LEVEL`
+
+> ⚠️ Do **not** enable `WHOP_DEV_BYPASS` in production—it intentionally skips token verification for local work outside the Whop iframe.
+
+## 3. Run the dev server
 
 ```bash
 npm run dev
 ```
 
-Open in browser:
-- **Customer View** (Tweet Feed): http://localhost:3000/customer/test
-- **Seller View** (Settings): http://localhost:3000/seller-product/test
+Open:
 
-### 5. Test the App
+- `http://localhost:3000/` – landing instructions  
+- `http://localhost:3000/experiences/demo-experience` – experience view preview
 
-1. Go to seller view: http://localhost:3000/seller-product/test
-2. Add a Twitter username (e.g., `elonmusk`)
-3. Wait ~30 seconds for the cron job to run (or manually trigger)
-4. Go to customer view: http://localhost:3000/customer/test
-5. You should see tweets appear!
+If you enabled the dev bypass you can test the wrapper UI here. Otherwise, continue to the dev proxy.
 
-### 6. Manually Trigger Cron Job (for testing)
+## 4. Attach to the Whop dev proxy
+
+1. In the Whop developer dashboard, open your app → **Develop** tab.
+2. Enable the dev proxy and set the proxy URL to `http://localhost:3000`.
+3. Launch the app from a test community sidebar. Whop inserts the `x-whop-user-token` header and you’ll see access state + order bump demo.
+4. Toggle the bump to confirm the plan swap, and try the in-app purchase button (works only inside the iframe).
+
+## 5. Webhook testing
+
+The webhook handler lives at `/api/webhooks`.
+
+- Point a Whop webhook (app or company scope) to `https://your-domain.com/api/webhooks`.
+- Use the same `WHOP_WEBHOOK_SECRET` in both Whop and your environment.
+- Inspect logs to verify `payment.succeeded` or `membership.activated` events reach the server.
+
+For local testing you can forward the endpoint with `ngrok` or replay payloads using the Whop CLI.
+
+## 6. Production build check
 
 ```bash
-curl -H "Authorization: Bearer your-random-secret-string-here-make-it-long-and-random" http://localhost:3000/api/cron/check-tweets
+npm run build
 ```
 
-Replace the secret with your actual `CRON_SECRET` value.
+This validates TypeScript and produces an optimized Next.js build. Dynamic routes remain server-rendered (`λ` in the output).
 
-## Deploy to Vercel
+## 7. Next steps
 
-### 1. Push to GitHub
+- Update `lib/config/order-bump.ts` with your real marketing copy and plan IDs.
+- Wire actual fulfillment logic inside `app/api/webhooks/route.ts`.
+- Review [`docs/whop-experience-notes.md`](./docs/whop-experience-notes.md) for implementation callouts.
 
-```bash
-git remote add origin https://github.com/yourusername/twitter-monitor.git
-git branch -M main
-git push -u origin main
-```
-
-### 2. Import to Vercel
-
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
-2. Click **"Import Project"**
-3. Select your GitHub repository
-4. Add the same environment variables from `.env.local`:
-   - `FIREBASE_PROJECT_ID`
-   - `FIREBASE_CLIENT_EMAIL`
-   - `FIREBASE_PRIVATE_KEY`
-   - `CRON_SECRET`
-5. Deploy!
-
-### 3. Verify Cron Job
-
-The cron job will automatically run every minute on Vercel. Check:
-- Vercel Dashboard > Your Project > Cron Jobs
-- Should show: `/api/cron/check-tweets` running every minute
-
-## Troubleshooting
-
-### Tweets not showing up?
-
-1. **Check Firebase connection:**
-   - Make sure environment variables are set correctly
-   - Verify the Firebase service account has Firestore permissions
-
-2. **Check cron job:**
-   ```bash
-   # Check logs in Vercel Dashboard
-   # Or test locally:
-   curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/check-tweets
-   ```
-
-3. **Check Twitter username:**
-   - Make sure it exists and has recent tweets
-   - Try a popular account like `elonmusk` first
-
-### Firebase errors?
-
-- Make sure you created Firestore Database (not Realtime Database)
-- Go to Firebase Console > Firestore Database > Create Database
-- Start in production mode
-
-### Cron job not running on Vercel?
-
-- Make sure `vercel.json` exists
-- Cron jobs only work on production deployments (not previews)
-- Check Vercel Dashboard > Settings > Cron Jobs
-
-## Next Steps
-
-1. **Add your own branding** - Update the Footer component
-2. **Customize colors** - Edit `tailwind.config.ts`
-3. **Add more features**:
-   - Multiple accounts
-   - Tweet filtering
-   - Push notifications
-   - Analytics
-
-## Support
-
-Built by [@edisonisgrowing](https://twitter.com/edisonisgrowing)
-
-Need help? Create an issue on GitHub or DM on Twitter!
+Need the full deploy story? Jump to [`DEPLOY.md`](./DEPLOY.md).

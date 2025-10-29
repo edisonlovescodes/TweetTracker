@@ -1,186 +1,72 @@
 # Deployment Guide
 
+Ship the Whop checkout experience to Vercel and wire it to your live app.
+
 ## Prerequisites
 
-✅ Build successful locally
-✅ Firebase project created
-✅ GitHub repository ready
+- `.env.local` configured (API key, app ID, plan IDs, webhook secret)
+- `npm run build` passes locally
+- Git repository initialised (or linked to GitHub)
 
-## Step-by-Step Deployment
-
-### 1. Push to GitHub
-
-If you haven't already:
+## 1. Push to GitHub
 
 ```bash
-# Create a new repository on GitHub first, then:
-git remote add origin https://github.com/YOUR_USERNAME/twitter-monitor-whop.git
+git init
+git add .
+git commit -m "chore: bootstrap whop checkout lab"
 git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/whop-checkout-lab.git
 git push -u origin main
 ```
 
-### 2. Deploy to Vercel
+## 2. Import into Vercel
 
-1. Go to [https://vercel.com](https://vercel.com)
-2. Click **"Import Project"** or **"Add New"** > **"Project"**
-3. Import your GitHub repository
-4. Configure:
-   - **Framework Preset**: Next.js (auto-detected)
-   - **Root Directory**: `./` (leave as default)
-   - **Build Command**: `npm run build` (auto)
-   - **Output Directory**: `.next` (auto)
-
-### 3. Add Environment Variables
-
-In the Vercel deployment settings, add these environment variables:
+1. Visit [vercel.com/new](https://vercel.com/new) and pick the repository.
+2. Framework preset: **Next.js** (auto detected).
+3. Build command: `npm run build` (default).
+4. Output directory: `.next`.
+5. Add environment variables under **Settings → Environment Variables**:
 
 ```
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_CLIENT_EMAIL=your-service-account-email@project.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour\nPrivate\nKey\nHere\n-----END PRIVATE KEY-----\n"
-CRON_SECRET=your-random-secret-string
+WHOP_API_KEY=api_xxxxxxxxx
+WHOP_APP_ID=app_xxxxxxxxx
+WHOP_WEBHOOK_SECRET=whsec_xxxxxxxxx
+WHOP_BASE_PLAN_ID=plan_baseOnly
+WHOP_BUNDLE_PLAN_ID=plan_bundleUpgrade
+WHOP_BUNDLE_PRODUCT_ID=prod_optional
+WHOP_CHECKOUT_THEME=light
+WHOP_CHECKOUT_ACCENT=sky
 ```
 
-**Important Notes:**
-- The `FIREBASE_PRIVATE_KEY` must include the quotes and `\n` characters
-- To add in Vercel: Settings > Environment Variables > Add
-- Add to **Production**, **Preview**, and **Development** (select all three)
+Apply them to Production, Preview, and Development.  
+*(Optional)* Add `WHOP_DEV_BYPASS=true` **only** to Development environments if you need to preview the wrapper outside the iframe.
 
-### 4. Deploy
+## 3. Deploy
 
-Click **"Deploy"**!
+Click **Deploy**. Vercel installs dependencies, runs `npm run build`, and hosts the app.
 
-Vercel will:
-- Install dependencies
-- Build your Next.js app
-- Deploy to production
-- Set up the cron job automatically
+## 4. Hook up Whop webhooks
 
-### 5. Verify Cron Job
+1. In the Whop dashboard, open your app → **Webhooks**.
+2. Point a webhook at `https://your-vercel-domain.com/api/webhooks`.
+3. Use the same secret you configured for `WHOP_WEBHOOK_SECRET`.
+4. Trigger a test event and inspect Vercel → Functions logs to confirm verification succeeds.
 
-After deployment:
+## 5. Verify the experience view
 
-1. Go to your Vercel project dashboard
-2. Click on **"Cron Jobs"** in the sidebar
-3. You should see:
-   ```
-   /api/cron/check-tweets
-   Schedule: * * * * * (every minute)
-   ```
+- Enable the Whop dev proxy and set it to your Vercel URL, or rely on the live routing.
+- Open the experience from a test community; confirm token verification, plan switching, and the in-app purchase button work inside the iframe.
+- Update `lib/config/order-bump.ts` with production copy/plan IDs as needed.
 
-### 6. Test Your App
+## 6. Updates & rollbacks
 
-Once deployed, your app will be at:
-```
-https://your-project-name.vercel.app
-```
+- Push to `main`; Vercel redeploys automatically.
+- To roll back, open Vercel → Deployments → pick a previous build → **Promote to Production**.
 
-Test URLs:
-- Customer view: `https://your-project-name.vercel.app/customer/test`
-- Seller view: `https://your-project-name.vercel.app/seller-product/test`
+## 7. Notes
 
-## Common Deployment Issues
+- Remove or update `vercel.json` if you no longer need legacy cron jobs.
+- Use Vercel’s **Logs → Functions** tab to debug webhook handlers.
+- Add custom domains via **Settings → Domains** and update DNS.
 
-### Build fails with Firebase errors
-
-**Problem**: Firebase credentials not set correctly
-
-**Solution**:
-- Make sure all three Firebase env vars are set
-- Check that `FIREBASE_PRIVATE_KEY` has quotes and `\n` characters
-- Test locally first with `.env.local`
-
-### Cron job not running
-
-**Problem**: Cron jobs only work in production
-
-**Solution**:
-- Make sure you deployed to production (not preview)
-- Check Vercel dashboard > Cron Jobs section
-- Wait 1-2 minutes after deployment for cron to start
-
-### API routes return 500 errors
-
-**Problem**: Firebase connection failing
-
-**Solution**:
-1. Check Vercel logs: Project > Deployments > Latest > View Function Logs
-2. Look for Firebase errors
-3. Verify service account permissions in Firebase Console
-
-### Tweets not showing up
-
-**Problem**: Multiple possible causes
-
-**Solution**:
-1. Check that you added a Twitter account in seller view
-2. Wait 1-2 minutes for first cron run
-3. Check Vercel function logs for errors
-4. Verify Firestore database exists in Firebase Console
-
-## Monitoring
-
-### View Logs
-
-1. Vercel Dashboard > Your Project
-2. Click on latest deployment
-3. Go to **"Functions"** tab
-4. Select `/api/cron/check-tweets`
-5. View real-time logs
-
-### Check Firestore
-
-1. Go to Firebase Console
-2. Click **"Firestore Database"**
-3. You should see two collections:
-   - `monitored_accounts` - Twitter usernames being monitored
-   - `tweets` - Cached tweets
-
-## Performance
-
-### Expected Costs
-
-- **Vercel Free Tier**: Up to 100GB bandwidth/month (plenty for small communities)
-- **Firebase Free Tier**: Up to 50k reads/day (good for ~500 members)
-- **Cron Jobs**: Included in Vercel (1 minute interval)
-
-### Scaling
-
-If you exceed free tiers:
-- **Vercel Pro**: $20/month (more bandwidth + faster builds)
-- **Firebase Blaze**: Pay-as-you-go (very cheap for small apps)
-
-## Custom Domain (Optional)
-
-1. Vercel Dashboard > Your Project > Settings > Domains
-2. Add your domain: `tweets.yourcommunity.com`
-3. Update DNS records as shown
-4. Wait for SSL certificate (automatic)
-
-## Updating the App
-
-To deploy updates:
-
-```bash
-git add .
-git commit -m "Your update message"
-git push
-```
-
-Vercel automatically deploys on every push to `main`!
-
-## Rollback
-
-If something breaks:
-
-1. Vercel Dashboard > Deployments
-2. Find last working deployment
-3. Click **"..."** menu > **"Promote to Production"**
-
-Instant rollback!
-
-## Support
-
-Built by [@edisonisgrowing](https://twitter.com/edisonisgrowing)
-
-Having deployment issues? Create an issue on GitHub or DM on Twitter!
+Need local setup details? See [`SETUP.md`](./SETUP.md). For Whop-specific research, reference [`docs/whop-experience-notes.md`](./docs/whop-experience-notes.md).
