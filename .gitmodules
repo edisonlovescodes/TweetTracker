@@ -1,0 +1,3 @@
+[submodule "courtpulse"]
+	path = courtpulse
+	url = https://github.com/edisonlovescodes/courtpulse
